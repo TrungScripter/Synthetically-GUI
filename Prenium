@@ -1,60 +1,556 @@
--- ULTRA SIMPLE AUTO TRADE & BAT
--- Copy and paste this entire script
+-- TRADE & BAT SCRIPT WITH GUI
+-- Loadstring: Copy everything below
 
-local Player = game.Players.LocalPlayer
+local Player = game:GetService("Players").LocalPlayer
 local Char = Player.Character or Player.CharacterAdded:Wait()
+local UIS = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 
+-- Settings
 local Enabled = true
 local AutoAccept = true
 local AutoBat = true
 
-print("🎯 Trade Script Loaded!")
-print("🔧 Controls: T = Toggle | B = Bat | A = Accept")
+-- GUI Creation
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "TradeScriptGUI"
+ScreenGui.Parent = game:GetService("CoreGui")
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-game:GetService("UserInputService").InputBegan:Connect(function(input, gp)
+-- Main Frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 320, 0, 360)
+MainFrame.Position = UDim2.new(0.5, -160, 0.5, -180)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+MainFrame.BackgroundTransparency = 0.1
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = MainFrame
+
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(80, 120, 200)
+UIStroke.Thickness = 2
+UIStroke.Parent = MainFrame
+
+-- Title Bar
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 40)
+TitleBar.Position = UDim2.new(0, 0, 0, 0)
+TitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+TitleBar.BackgroundTransparency = 0
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 12)
+TitleCorner.Parent = TitleBar
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Text = "⚡ TRADE MASTER ⚡"
+Title.Size = UDim2.new(1, -40, 1, 0)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
+Title.TextColor3 = Color3.fromRGB(220, 220, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 18
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TitleBar
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Text = "X"
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -35, 0.5, -15)
+CloseButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.TextSize = 14
+CloseButton.Parent = TitleBar
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 6)
+CloseCorner.Parent = CloseButton
+
+-- Status Panel
+local StatusPanel = Instance.new("Frame")
+StatusPanel.Name = "StatusPanel"
+StatusPanel.Size = UDim2.new(1, -20, 0, 100)
+StatusPanel.Position = UDim2.new(0, 10, 0, 50)
+StatusPanel.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+StatusPanel.BackgroundTransparency = 0
+StatusPanel.BorderSizePixel = 0
+StatusPanel.Parent = MainFrame
+
+local StatusCorner = Instance.new("UICorner")
+StatusCorner.CornerRadius = UDim.new(0, 8)
+StatusCorner.Parent = StatusPanel
+
+local StatusTitle = Instance.new("TextLabel")
+StatusTitle.Text = "SYSTEM STATUS"
+StatusTitle.Size = UDim2.new(1, 0, 0, 25)
+StatusTitle.Position = UDim2.new(0, 10, 0, 5)
+StatusTitle.BackgroundTransparency = 1
+StatusTitle.TextColor3 = Color3.fromRGB(180, 180, 220)
+StatusTitle.Font = Enum.Font.GothamSemibold
+StatusTitle.TextSize = 12
+StatusTitle.TextXAlignment = Enum.TextXAlignment.Left
+StatusTitle.Parent = StatusPanel
+
+-- Status Labels
+local ScriptStatus = Instance.new("TextLabel")
+ScriptStatus.Name = "ScriptStatus"
+ScriptStatus.Text = "🟢 SCRIPT: ACTIVE"
+ScriptStatus.Size = UDim2.new(1, -20, 0, 20)
+ScriptStatus.Position = UDim2.new(0, 10, 0, 30)
+ScriptStatus.BackgroundTransparency = 1
+ScriptStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
+ScriptStatus.Font = Enum.Font.Gotham
+ScriptStatus.TextSize = 14
+ScriptStatus.TextXAlignment = Enum.TextXAlignment.Left
+ScriptStatus.Parent = StatusPanel
+
+local TradeStatus = Instance.new("TextLabel")
+TradeStatus.Name = "TradeStatus"
+TradeStatus.Text = "📤 TRADE: WAITING"
+TradeStatus.Size = UDim2.new(1, -20, 0, 20)
+TradeStatus.Position = UDim2.new(0, 10, 0, 50)
+TradeStatus.BackgroundTransparency = 1
+TradeStatus.TextColor3 = Color3.fromRGB(200, 200, 255)
+TradeStatus.Font = Enum.Font.Gotham
+TradeStatus.TextSize = 14
+TradeStatus.TextXAlignment = Enum.TextXAlignment.Left
+TradeStatus.Parent = StatusPanel
+
+local BatStatus = Instance.new("TextLabel")
+BatStatus.Name = "BatStatus"
+BatStatus.Text = "🏏 BAT: SEARCHING..."
+BatStatus.Size = UDim2.new(1, -20, 0, 20)
+BatStatus.Position = UDim2.new(0, 10, 0, 70)
+BatStatus.BackgroundTransparency = 1
+BatStatus.TextColor3 = Color3.fromRGB(200, 200, 255)
+BatStatus.Font = Enum.Font.Gotham
+BatStatus.TextSize = 14
+BatStatus.TextXAlignment = Enum.TextXAlignment.Left
+BatStatus.Parent = StatusPanel
+
+-- Controls Panel
+local ControlsPanel = Instance.new("Frame")
+ControlsPanel.Name = "ControlsPanel"
+ControlsPanel.Size = UDim2.new(1, -20, 0, 160)
+ControlsPanel.Position = UDim2.new(0, 10, 0, 160)
+ControlsPanel.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+ControlsPanel.BackgroundTransparency = 0
+ControlsPanel.BorderSizePixel = 0
+ControlsPanel.Parent = MainFrame
+
+local ControlsCorner = Instance.new("UICorner")
+ControlsCorner.CornerRadius = UDim.new(0, 8)
+ControlsCorner.Parent = ControlsPanel
+
+local ControlsTitle = Instance.new("TextLabel")
+ControlsTitle.Text = "CONTROLS"
+ControlsTitle.Size = UDim2.new(1, 0, 0, 25)
+ControlsTitle.Position = UDim2.new(0, 10, 0, 5)
+ControlsTitle.BackgroundTransparency = 1
+ControlsTitle.TextColor3 = Color3.fromRGB(180, 180, 220)
+ControlsTitle.Font = Enum.Font.GothamSemibold
+ControlsTitle.TextSize = 12
+ControlsTitle.TextXAlignment = Enum.TextXAlignment.Left
+ControlsTitle.Parent = ControlsPanel
+
+-- Toggle Buttons
+local function CreateToggleButton(name, text, position, defaultValue)
+    local button = Instance.new("TextButton")
+    button.Name = name
+    button.Text = ""
+    button.Size = UDim2.new(1, -20, 0, 36)
+    button.Position = position
+    button.BackgroundColor3 = defaultValue and Color3.fromRGB(60, 150, 80) or Color3.fromRGB(80, 80, 100)
+    button.AutoButtonColor = false
+    button.Parent = ControlsPanel
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = button
+    
+    local label = Instance.new("TextLabel")
+    label.Text = text
+    label.Size = UDim2.new(0.7, 0, 1, 0)
+    label.Position = UDim2.new(0, 10, 0, 0)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = Color3.fromRGB(240, 240, 255)
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = button
+    
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Text = defaultValue and "ON" or "OFF"
+    statusLabel.Size = UDim2.new(0.2, 0, 1, 0)
+    statusLabel.Position = UDim2.new(0.8, -10, 0, 0)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.TextColor3 = defaultValue and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
+    statusLabel.Font = Enum.Font.GothamBold
+    statusLabel.TextSize = 14
+    statusLabel.Parent = button
+    
+    return button, statusLabel
+end
+
+-- Create toggle buttons
+local ToggleScriptBtn, ScriptToggleStatus = CreateToggleButton("ToggleScript", "📱 Script", UDim2.new(0, 10, 0, 30), Enabled)
+local ToggleAcceptBtn, AcceptToggleStatus = CreateToggleButton("ToggleAccept", "✅ Auto Accept", UDim2.new(0, 10, 0, 72), AutoAccept)
+local ToggleBatBtn, BatToggleStatus = CreateToggleButton("ToggleBat", "🏏 Auto Bat", UDim2.new(0, 10, 0, 114), AutoBat)
+
+-- Action Buttons
+local function CreateActionButton(name, text, position, color)
+    local button = Instance.new("TextButton")
+    button.Name = name
+    button.Text = text
+    button.Size = UDim2.new(0.45, 0, 0, 36)
+    button.Position = position
+    button.BackgroundColor3 = color
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.Font = Enum.Font.GothamSemibold
+    button.TextSize = 14
+    button.Parent = ControlsPanel
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = button
+    
+    return button
+end
+
+local EquipBatBtn = CreateActionButton("EquipBat", "EQUIP BAT", UDim2.new(0, 10, 1, -40), Color3.fromRGB(80, 120, 200))
+local AcceptTradeBtn = CreateActionButton("AcceptTrade", "ACCEPT TRADE", UDim2.new(0.55, 0, 1, -40), Color3.fromRGB(60, 180, 100))
+
+-- Footer
+local Footer = Instance.new("TextLabel")
+Footer.Text = "🎮 Press T, B, A for quick controls"
+Footer.Size = UDim2.new(1, -20, 0, 30)
+Footer.Position = UDim2.new(0, 10, 1, -30)
+Footer.BackgroundTransparency = 1
+Footer.TextColor3 = Color3.fromRGB(150, 150, 180)
+Footer.Font = Enum.Font.Gotham
+Footer.TextSize = 11
+Footer.Parent = MainFrame
+
+-- GUI Interaction Variables
+local dragging = false
+local dragInput
+local dragStart
+local startPos
+
+-- Make GUI Draggable
+TitleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+TitleBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInput = input
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+-- Close Button
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+    print("GUI Closed")
+end)
+
+-- Button Functions
+ToggleScriptBtn.MouseButton1Click:Connect(function()
+    Enabled = not Enabled
+    ToggleScriptBtn.BackgroundColor3 = Enabled and Color3.fromRGB(60, 150, 80) or Color3.fromRGB(80, 80, 100)
+    ScriptToggleStatus.Text = Enabled and "ON" or "OFF"
+    ScriptToggleStatus.TextColor3 = Enabled and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
+    ScriptStatus.Text = Enabled and "🟢 SCRIPT: ACTIVE" or "🔴 SCRIPT: DISABLED"
+    ScriptStatus.TextColor3 = Enabled and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
+    print("Script " .. (Enabled and "ENABLED" or "DISABLED"))
+end)
+
+ToggleAcceptBtn.MouseButton1Click:Connect(function()
+    AutoAccept = not AutoAccept
+    ToggleAcceptBtn.BackgroundColor3 = AutoAccept and Color3.fromRGB(60, 150, 80) or Color3.fromRGB(80, 80, 100)
+    AcceptToggleStatus.Text = AutoAccept and "ON" or "OFF"
+    AcceptToggleStatus.TextColor3 = AutoAccept and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
+    print("Auto Accept " .. (AutoAccept and "ENABLED" or "DISABLED"))
+end)
+
+ToggleBatBtn.MouseButton1Click:Connect(function()
+    AutoBat = not AutoBat
+    ToggleBatBtn.BackgroundColor3 = AutoBat and Color3.fromRGB(60, 150, 80) or Color3.fromRGB(80, 80, 100)
+    BatToggleStatus.Text = AutoBat and "ON" or "OFF"
+    BatToggleStatus.TextColor3 = AutoBat and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
+    print("Auto Bat " .. (AutoBat and "ENABLED" or "DISABLED"))
+end)
+
+-- Bat Functions
+local function findBat()
+    -- Check character
+    if Char then
+        for _, tool in pairs(Char:GetChildren()) do
+            if tool:IsA("Tool") and (string.find(tool.Name:lower(), "bat") or string.find(tool.Name:lower(), "club")) then
+                return tool
+            end
+        end
+    end
+    
+    -- Check backpack
+    local backpack = Player:FindFirstChild("Backpack")
+    if backpack then
+        for _, tool in pairs(backpack:GetChildren()) do
+            if tool:IsA("Tool") and (string.find(tool.Name:lower(), "bat") or string.find(tool.Name:lower(), "club")) then
+                return tool
+            end
+        end
+    end
+    
+    return nil
+end
+
+local function equipBat()
+    local bat = findBat()
+    if bat and Char and Char:FindFirstChild("Humanoid") then
+        local humanoid = Char.Humanoid
+        
+        -- Check if already equipped
+        local alreadyEquipped = false
+        for _, tool in pairs(Char:GetChildren()) do
+            if tool:IsA("Tool") and tool == bat then
+                alreadyEquipped = true
+                break
+            end
+        end
+        
+        if not alreadyEquipped then
+            -- Unequip current tools
+            for _, tool in pairs(Char:GetChildren()) do
+                if tool:IsA("Tool") then
+                    humanoid:UnequipTool(tool)
+                end
+            end
+            
+            -- Equip bat
+            humanoid:EquipTool(bat)
+            BatStatus.Text = "🏏 BAT: EQUIPPED ✓"
+            BatStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
+            return true
+        else
+            BatStatus.Text = "🏏 BAT: ALREADY EQUIPPED"
+            BatStatus.TextColor3 = Color3.fromRGB(255, 200, 100)
+            return true
+        end
+    else
+        BatStatus.Text = "🏏 BAT: NOT FOUND ✗"
+        BatStatus.TextColor3 = Color3.fromRGB(255, 100, 100)
+        return false
+    end
+end
+
+EquipBatBtn.MouseButton1Click:Connect(function()
+    equipBat()
+    print("Manually equipping bat...")
+end)
+
+-- Trade Functions
+local function findTradeButton()
+    -- Check PlayerGui
+    local playerGui = Player:FindFirstChild("PlayerGui")
+    if playerGui then
+        for _, gui in pairs(playerGui:GetDescendants()) do
+            if gui:IsA("TextButton") then
+                local text = gui.Text:lower()
+                if text:find("accept") or text:find("trade") then
+                    return gui
+                end
+            end
+        end
+    end
+    
+    -- Check CoreGui
+    for _, gui in pairs(game:GetService("CoreGui"):GetDescendants()) do
+        if gui:IsA("TextButton") then
+            local text = gui.Text:lower()
+            if text:find("accept") or text:find("trade") then
+                return gui
+            end
+        end
+    end
+    
+    return nil
+end
+
+local function acceptTrade()
+    local button = findTradeButton()
+    if button then
+        -- Try to click the button
+        pcall(function()
+            if button:IsA("TextButton") then
+                button.Activated:Fire()
+            end
+            
+            local clickEvent = button:FindFirstChild("MouseButton1Click")
+            if clickEvent then
+                clickEvent:Fire()
+            end
+        end)
+        
+        TradeStatus.Text = "📤 TRADE: ACCEPTED ✓"
+        TradeStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
+        
+        -- Equip bat after accepting trade
+        task.wait(0.2)
+        if AutoBat then equipBat() end
+        
+        return true
+    end
+    return false
+end
+
+AcceptTradeBtn.MouseButton1Click:Connect(function()
+    if acceptTrade() then
+        print("Manually accepted trade!")
+    else
+        TradeStatus.Text = "📤 TRADE: NO BUTTON"
+        TradeStatus.TextColor3 = Color3.fromRGB(255, 100, 100)
+        print("No trade button found")
+    end
+end)
+
+-- Keyboard Controls
+UIS.InputBegan:Connect(function(input, gp)
     if gp then return end
     
     if input.KeyCode == Enum.KeyCode.T then
         Enabled = not Enabled
-        print("Script: " .. (Enabled and "ON" or "OFF"))
+        ToggleScriptBtn.BackgroundColor3 = Enabled and Color3.fromRGB(60, 150, 80) or Color3.fromRGB(80, 80, 100)
+        ScriptToggleStatus.Text = Enabled and "ON" or "OFF"
+        ScriptToggleStatus.TextColor3 = Enabled and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
+        ScriptStatus.Text = Enabled and "🟢 SCRIPT: ACTIVE" or "🔴 SCRIPT: DISABLED"
+        ScriptStatus.TextColor3 = Enabled and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
+        print("Script " .. (Enabled and "ENABLED" or "DISABLED"))
     end
     
     if input.KeyCode == Enum.KeyCode.B then
-        for _, tool in pairs(Char:GetChildren()) do
-            if tool:IsA("Tool") and tool.Name:lower():find("bat") then
-                Char.Humanoid:EquipTool(tool)
-                print("Equipped: " .. tool.Name)
-                break
-            end
+        equipBat()
+        print("Manually equipping bat...")
+    end
+    
+    if input.KeyCode == Enum.KeyCode.A then
+        if acceptTrade() then
+            print("Manually accepted trade!")
+        else
+            TradeStatus.Text = "📤 TRADE: NO BUTTON"
+            TradeStatus.TextColor3 = Color3.fromRGB(255, 100, 100)
+            print("No trade button found")
         end
     end
 end)
 
-while true do
-    if Enabled then
-        -- Always equip bat
-        if AutoBat then
-            for _, tool in pairs(Char:GetChildren()) do
-                if tool:IsA("Tool") and tool.Name:lower():find("bat") then
-                    if not Char.Humanoid:GetEquippedTools()[1] then
-                        Char.Humanoid:EquipTool(tool)
+-- Character respawn handling
+Player.CharacterAdded:Connect(function(newChar)
+    Char = newChar
+    BatStatus.Text = "🏏 BAT: SEARCHING..."
+    BatStatus.TextColor3 = Color3.fromRGB(200, 200, 255)
+    
+    -- Re-equip bat after respawn
+    task.wait(2)
+    if AutoBat then
+        equipBat()
+    end
+end)
+
+-- Main Loop
+task.spawn(function()
+    while true do
+        if Enabled then
+            -- Auto equip bat
+            if AutoBat then
+                local bat = findBat()
+                if bat and Char and Char:FindFirstChild("Humanoid") then
+                    local humanoid = Char.Humanoid
+                    local equipped = false
+                    
+                    for _, tool in pairs(Char:GetChildren()) do
+                        if tool:IsA("Tool") and tool == bat then
+                            equipped = true
+                            break
+                        end
                     end
-                    break
+                    
+                    if not equipped and not batEquipped then
+                        -- Only update status if not already equipped
+                        BatStatus.Text = "🏏 BAT: AUTO-EQUIPPING..."
+                        BatStatus.TextColor3 = Color3.fromRGB(255, 200, 100)
+                    end
+                end
+            end
+            
+            -- Auto accept trades
+            if AutoAccept then
+                local button = findTradeButton()
+                if button then
+                    TradeStatus.Text = "📤 TRADE: FOUND!"
+                    TradeStatus.TextColor3 = Color3.fromRGB(255, 200, 100)
+                    
+                    task.wait(0.1)
+                    if acceptTrade() then
+                        TradeStatus.Text = "📤 TRADE: ACCEPTED ✓"
+                        TradeStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
+                    end
                 end
             end
         end
         
-        -- Auto accept trades
-        if AutoAccept then
-            for _, gui in pairs(game.CoreGui:GetDescendants()) do
-                if gui:IsA("TextButton") and gui.Text:lower():find("accept") then
-                    pcall(function() gui:FireEvent("Activated") end)
-                    pcall(function() gui:FireEvent("MouseButton1Click") end)
-                    print("Accepted trade!")
-                    break
-                end
-            end
-        end
+        task.wait(0.2)
     end
-    wait(0.1)
+end)
+
+-- Initial bat check
+task.wait(1)
+local bat = findBat()
+if bat then
+    BatStatus.Text = "🏏 BAT: FOUND (" .. bat.Name .. ")"
+    BatStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
+    if AutoBat then equipBat() end
+else
+    BatStatus.Text = "🏏 BAT: NOT FOUND ✗"
+    BatStatus.TextColor3 = Color3.fromRGB(255, 100, 100)
 end
+
+print("========================================")
+print("🎮 TRADE MASTER GUI LOADED!")
+print("📱 GUI Features:")
+print("  • Drag the title bar to move")
+print("  • Click buttons to toggle features")
+print("  • Close with X button")
+print("🎮 Keyboard Controls:")
+print("  T = Toggle script")
+print("  B = Equip bat")
+print("  A = Accept trade")
+print("========================================")
