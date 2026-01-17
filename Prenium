@@ -1,12 +1,13 @@
--- AUTO TRADE ACCEPT + INSTANT BAT EQUIP
--- For Xeno Executor
--- Auto-accepts trades and instantly equips bat when trading
+-- AUTO TRADE ACCEPT + ALWAYS EQUIP BAT
+-- For Delta & Xeno Executors
+-- Auto-accepts trades and always equips bat when idle
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+local HttpService = game:GetService("HttpService")
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
@@ -15,26 +16,28 @@ local backpack = player:WaitForChild("Backpack")
 -- Configuration
 local ENABLED = true
 local AUTO_ACCEPT_TRADE = true
-local INSTANT_BAT_EQUIP = true
-local BAT_NAMES = {"Bat", "bat", "Baseball Bat", "Bat Weapon"}  -- Multiple possible bat names
+local AUTO_SWITCH_TO_BAT = true
+local ALWAYS_EQUIP_BAT = true  -- Always equip bat when idle
+local BAT_NAME = "Bat"  -- Change this if your bat has a different name
 local CHECK_INTERVAL = 0.3  -- Faster checking
+local TRADE_CHECK_INTERVAL = 0.1  -- Even faster for trade detection
 
 -- Trade tracking
-local currentTrade = nil
 local isTrading = false
-local tradePartners = {}
-local lastTradeDetection = 0
+local lastEquipTime = 0
+local lastTradeCheck = 0
+local currentBat = nil
 
 -- GUI for status
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "AutoTradeGUI"
-screenGui.Parent = game:GetService("CoreGui")
+screenGui.Parent = game:GetService("CoreGui") or player:WaitForChild("PlayerGui")
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 300, 0, 150)
-mainFrame.Position = UDim2.new(0.5, -150, 0, 10)
-mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-mainFrame.BackgroundTransparency = 0.1
+mainFrame.Size = UDim2.new(0, 320, 0, 180)
+mainFrame.Position = UDim2.new(1, -330, 0, 10)  -- Top right corner
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+mainFrame.BackgroundTransparency = 0.15
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
 
@@ -42,94 +45,201 @@ local UICorner = Instance.new("UICorner")
 UICorner.CornerRadius = UDim.new(0, 8)
 UICorner.Parent = mainFrame
 
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(100, 100, 200)
+UIStroke.Thickness = 2
+UIStroke.Parent = mainFrame
+
 -- Title
 local title = Instance.new("TextLabel")
-title.Text = "⚡ INSTANT TRADE SCRIPT"
-title.Size = UDim2.new(1, 0, 0, 40)
+title.Text = "⚡ AUTO TRADE & BAT"
+title.Size = UDim2.new(1, 0, 0, 35)
 title.Position = UDim2.new(0, 0, 0, 0)
-title.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.BackgroundColor3 = Color3.fromRGB(40, 40, 80)
+title.TextColor3 = Color3.fromRGB(200, 200, 255)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 16
 title.Parent = mainFrame
 
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 8)
+titleCorner.Parent = title
+
 -- Status
 local statusLabel = Instance.new("TextLabel")
-statusLabel.Text = "STATUS: ACTIVE"
+statusLabel.Text = "🟢 STATUS: ACTIVE"
 statusLabel.Size = UDim2.new(1, 0, 0, 30)
-statusLabel.Position = UDim2.new(0, 0, 0, 40)
+statusLabel.Position = UDim2.new(0, 0, 0, 35)
 statusLabel.BackgroundTransparency = 1
 statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
 statusLabel.Font = Enum.Font.GothamSemibold
 statusLabel.TextSize = 14
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 statusLabel.Parent = mainFrame
 
 -- Trade Info
 local tradeInfoLabel = Instance.new("TextLabel")
-tradeInfoLabel.Text = "Trade: Waiting..."
+tradeInfoLabel.Text = "📤 Trade: Waiting..."
 tradeInfoLabel.Size = UDim2.new(1, 0, 0, 30)
-tradeInfoLabel.Position = UDim2.new(0, 0, 0, 70)
+tradeInfoLabel.Position = UDim2.new(0, 0, 0, 65)
 tradeInfoLabel.BackgroundTransparency = 1
 tradeInfoLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
 tradeInfoLabel.Font = Enum.Font.Gotham
 tradeInfoLabel.TextSize = 12
+tradeInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
 tradeInfoLabel.Parent = mainFrame
 
 -- Bat Status
 local batStatusLabel = Instance.new("TextLabel")
-batStatusLabel.Text = "Bat: Ready"
+batStatusLabel.Text = "🏏 Bat: Searching..."
 batStatusLabel.Size = UDim2.new(1, 0, 0, 30)
-batStatusLabel.Position = UDim2.new(0, 0, 0, 100)
+batStatusLabel.Position = UDim2.new(0, 0, 0, 95)
 batStatusLabel.BackgroundTransparency = 1
 batStatusLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
 batStatusLabel.Font = Enum.Font.Gotham
 batStatusLabel.TextSize = 12
+batStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 batStatusLabel.Parent = mainFrame
 
--- Cache bat for instant access
-local cachedBat = nil
-local lastBatCheck = 0
-local BAT_CACHE_DURATION = 5  -- Refresh cache every 5 seconds
+-- Instructions
+local instructionsLabel = Instance.new("TextLabel")
+instructionsLabel.Text = "🔄 T = Toggle | B = Equip Bat | A = Accept"
+instructionsLabel.Size = UDim2.new(1, 0, 0, 25)
+instructionsLabel.Position = UDim2.new(0, 0, 0, 155)
+instructionsLabel.BackgroundTransparency = 1
+instructionsLabel.TextColor3 = Color3.fromRGB(150, 150, 200)
+instructionsLabel.Font = Enum.Font.Gotham
+instructionsLabel.TextSize = 10
+instructionsLabel.Parent = mainFrame
 
 -- Functions
 local function findBat()
-    -- Check cache first
-    if cachedBat and cachedBat:IsDescendantOf(game) then
-        return cachedBat
+    if not backpack then return nil end
+    
+    local foundBat = nil
+    
+    -- Check character first (already equipped)
+    if character then
+        for _, item in pairs(character:GetChildren()) do
+            if item:IsA("Tool") and (string.find(string.lower(item.Name), "bat") or item.Name == BAT_NAME) then
+                foundBat = item
+                break
+            end
+        end
     end
     
-    -- Refresh cache periodically
-    if tick() - lastBatCheck < BAT_CACHE_DURATION then
-        return cachedBat
-    end
-    
-    lastBatCheck = tick()
-    cachedBat = nil
-    
-    -- Search in backpack
-    if backpack then
+    -- Check backpack
+    if not foundBat then
         for _, item in pairs(backpack:GetChildren()) do
-            if item:IsA("Tool") then
-                for _, batName in ipairs(BAT_NAMES) do
-                    if string.find(string.lower(item.Name), string.lower(batName)) then
-                        cachedBat = item
-                        return cachedBat
+            if item:IsA("Tool") and (string.find(string.lower(item.Name), "bat") or item.Name == BAT_NAME) then
+                foundBat = item
+                break
+            end
+        end
+    end
+    
+    -- Extended search for common bat names
+    if not foundBat then
+        local batNames = {"Bat", "Baseball Bat", "Vampire Bat", "Wood Bat", "Metal Bat", "Bat Weapon"}
+        for _, batName in pairs(batNames) do
+            local bat = backpack:FindFirstChild(batName) or (character and character:FindFirstChild(batName))
+            if bat and bat:IsA("Tool") then
+                foundBat = bat
+                break
+            end
+        end
+    end
+    
+    return foundBat
+end
+
+local function equipBat(force)
+    if not AUTO_SWITCH_TO_BAT and not ALWAYS_EQUIP_BAT and not force then return false end
+    
+    if tick() - lastEquipTime < 0.5 then  -- Prevent spamming
+        return false
+    end
+    
+    local bat = findBat()
+    if bat then
+        currentBat = bat
+        
+        if character and character:FindFirstChild("Humanoid") then
+            local humanoid = character.Humanoid
+            
+            -- Check if already equipped
+            local alreadyEquipped = false
+            for _, tool in pairs(character:GetChildren()) do
+                if tool:IsA("Tool") and tool == bat then
+                    alreadyEquipped = true
+                    break
+                end
+            end
+            
+            if not alreadyEquipped then
+                -- Unequip current tools first (optional)
+                for _, tool in pairs(character:GetChildren()) do
+                    if tool:IsA("Tool") and tool ~= bat then
+                        pcall(function()
+                            humanoid:UnequipTool(tool)
+                        end)
+                        task.wait(0.05)
+                    end
+                end
+                
+                -- Equip bat
+                pcall(function()
+                    humanoid:EquipTool(bat)
+                end)
+                
+                batStatusLabel.Text = "🏏 Bat: Equipped ✓ (" .. bat.Name .. ")"
+                batStatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+                lastEquipTime = tick()
+                return true
+            else
+                batStatusLabel.Text = "🏏 Bat: Already Equipped ✓"
+                batStatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+                return true
+            end
+        end
+    else
+        batStatusLabel.Text = "🏏 Bat: Not Found ✗"
+        batStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+        return false
+    end
+end
+
+-- Enhanced GUI detection
+local function findTradeGUI()
+    -- Look in PlayerGui first (most common)
+    local playerGui = player:FindFirstChild("PlayerGui")
+    if playerGui then
+        for _, gui in pairs(playerGui:GetDescendants()) do
+            if gui:IsA("ScreenGui") or gui:IsA("Frame") then
+                local text = string.lower(gui.Name or "")
+                if string.find(text, "trade") or string.find(text, "trading") then
+                    return gui
+                end
+                
+                -- Check for accept/decline buttons
+                for _, child in pairs(gui:GetDescendants()) do
+                    if child:IsA("TextButton") then
+                        local btnText = string.lower(child.Text or "")
+                        if string.find(btnText, "accept") or string.find(btnText, "decline") then
+                            return gui
+                        end
                     end
                 end
             end
         end
     end
     
-    -- Search in character
-    if character then
-        for _, item in pairs(character:GetChildren()) do
-            if item:IsA("Tool") then
-                for _, batName in ipairs(BAT_NAMES) do
-                    if string.find(string.lower(item.Name), string.lower(batName)) then
-                        cachedBat = item
-                        return cachedBat
-                    end
-                end
+    -- Look in CoreGui
+    for _, gui in pairs(game:GetService("CoreGui"):GetDescendants()) do
+        if gui:IsA("TextButton") then
+            local text = string.lower(gui.Text or "")
+            if string.find(text, "accept trade") or string.find(text, "trade with") then
+                return gui.Parent
             end
         end
     end
@@ -137,325 +247,142 @@ local function findBat()
     return nil
 end
 
--- INSTANT bat equip (no delays, immediate)
-local function instantEquipBat()
-    if not INSTANT_BAT_EQUIP then return false end
-    
-    local bat = findBat()
-    if not bat then
-        batStatusLabel.Text = "Bat: Not Found ✗"
-        batStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-        return false
-    end
-    
-    if not character or not character:FindFirstChild("Humanoid") then
-        batStatusLabel.Text = "Bat: No Character ✗"
-        batStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-        return false
-    end
-    
-    local humanoid = character.Humanoid
-    
-    -- INSTANT EQUIP - Direct method with no delays
-    local success = pcall(function()
-        -- Use immediate equip without unequip first (faster)
-        humanoid:EquipTool(bat)
-        
-        -- Alternative method if first fails
-        if not character:FindFirstChild(bat.Name) then
-            -- Force equip by removing and re-adding
-            local batClone = bat:Clone()
-            batClone.Parent = backpack
-            humanoid:EquipTool(batClone)
-        end
-    end)
-    
-    if success then
-        batStatusLabel.Text = "Bat: INSTANT ✓"
-        batStatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-        return true
-    else
-        -- Fallback: try standard method
-        pcall(function()
-            humanoid:UnequipTools()
-            humanoid:EquipTool(bat)
-        end)
-        
-        batStatusLabel.Text = "Bat: Equipped ✓"
-        batStatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-        return true
-    end
-end
-
--- ULTRA FAST trade detection
-local function detectTradeInstantly()
-    -- Method 1: Direct GUI scanning
-    local guiNames = {
-        "Trade", "Trading", "TradeGUI", "TradeMenu",
-        "TradeFrame", "TradeWindow", "TradingGUI",
-        "TradeRequest", "TradeAccept"
-    }
-    
-    -- Check CoreGui first
-    local coreGui = game:GetService("CoreGui")
-    for _, name in pairs(guiNames) do
-        local gui = coreGui:FindFirstChild(name)
-        if gui then
-            return true, gui
-        end
-    end
-    
-    -- Check PlayerGui
+-- Fast GUI scanning for trade accept button
+local function scanForAcceptButton()
     local playerGui = player:FindFirstChild("PlayerGui")
     if playerGui then
-        for _, name in pairs(guiNames) do
-            local gui = playerGui:FindFirstChild(name)
-            if gui then
-                return true, gui
-            end
-        end
-    end
-    
-    -- Method 2: Scan for trade text
-    local function scanForTradeText(parent)
-        for _, gui in pairs(parent:GetDescendants()) do
-            if gui:IsA("TextButton") or gui:IsA("TextLabel") then
-                local text = string.lower(gui.Text or "")
-                if string.find(text, "accept") or 
-                   string.find(text, "trade") or 
-                   string.find(text, "confirm") then
-                    return true, gui
-                end
-            end
-        end
-        return false, nil
-    end
-    
-    local found, element = scanForTradeText(coreGui)
-    if found then return true, element end
-    
-    if playerGui then
-        found, element = scanForTradeText(playerGui)
-        if found then return true, element end
-    end
-    
-    return false, nil
-end
-
--- INSTANT trade acceptance
-local function instantAcceptTrade()
-    if not AUTO_ACCEPT_TRADE then return false end
-    
-    local tradeFound, tradeElement = detectTradeInstantly()
-    if not tradeFound then return false end
-    
-    -- Try to find and click accept button
-    local function clickAcceptButtons(parent)
-        for _, gui in pairs(parent:GetDescendants()) do
+        -- Direct button search
+        for _, gui in pairs(playerGui:GetDescendants()) do
             if gui:IsA("TextButton") or gui:IsA("ImageButton") then
                 local text = string.lower(gui.Text or "")
                 local name = string.lower(gui.Name or "")
                 
-                if string.find(text, "accept") or 
-                   string.find(text, "confirm") or
-                   string.find(text, "trade") then
+                if (string.find(text, "accept") and string.find(text, "trade")) or
+                   (string.find(name, "accept") and string.find(name, "trade")) or
+                   string.find(text, "accept gift") then
                     
-                    -- INSTANT CLICK - multiple methods
-                    pcall(function() gui:FireEvent("MouseButton1Click") end)
-                    pcall(function() gui:FireEvent("Activated") end)
-                    pcall(function() gui:FireEvent("MouseButton1Down") end)
-                    pcall(function() gui:FireEvent("MouseButton1Up") end)
-                    
-                    tradeInfoLabel.Text = "Trade: ACCEPTED ✓"
-                    tradeInfoLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-                    return true
+                    return gui
                 end
             end
         end
-        return false
     end
     
-    local clicked = clickAcceptButtons(game:GetService("CoreGui"))
-    if not clicked and player:FindFirstChild("PlayerGui") then
-        clicked = clickAcceptButtons(player.PlayerGui)
+    -- Check CoreGui
+    for _, gui in pairs(game:GetService("CoreGui"):GetDescendants()) do
+        if gui:IsA("TextButton") then
+            local text = string.lower(gui.Text or "")
+            if text == "accept" or text == "accept trade" then
+                return gui
+            end
+        end
     end
     
-    return clicked
+    return nil
 end
 
--- Pre-cache bat on startup
-task.spawn(function()
-    task.wait(1)
-    local bat = findBat()
-    if bat then
-        warn("[BAT CACHED] " .. bat.Name .. " ready for instant equip")
-        batStatusLabel.Text = "Bat: Cached ✓"
-        batStatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-    else
-        warn("[BAT WARNING] No bat found!")
-        batStatusLabel.Text = "Bat: Not Found ✗"
-        batStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+local function acceptTrade()
+    if not AUTO_ACCEPT_TRADE then return false end
+    
+    local acceptButton = scanForAcceptButton()
+    if acceptButton then
+        -- Try to click the button
+        pcall(function()
+            if acceptButton:IsA("TextButton") or acceptButton:IsA("ImageButton") then
+                -- Fire all possible events
+                acceptButton:FireEvent("MouseButton1Click")
+                acceptButton:FireEvent("Activated")
+                acceptButton:FireEvent("MouseButton1Down")
+                acceptButton:FireEvent("MouseButton1Up")
+                
+                -- Simulate click via remote if available
+                local remoteEvent = acceptButton:FindFirstChildOfClass("RemoteEvent")
+                if remoteEvent then
+                    remoteEvent:FireServer()
+                end
+            end
+        end)
+        
+        tradeInfoLabel.Text = "📤 Trade: Accepted ✓"
+        tradeInfoLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+        
+        -- Equip bat immediately after accepting trade
+        if AUTO_SWITCH_TO_BAT then
+            task.wait(0.2)
+            equipBat(true)
+        end
+        
+        return true
     end
-end)
+    
+    return false
+end
 
--- INSTANT trade response loop
+-- Main monitoring loop
 task.spawn(function()
-    local lastTradeState = false
-    local batEquippedAtTradeStart = false
+    local lastBatCheck = 0
+    local lastIdleEquip = 0
     
     while true do
         if ENABLED then
-            -- Update bat cache periodically
-            if tick() - lastBatCheck > BAT_CACHE_DURATION then
-                findBat()
+            -- Update bat status periodically
+            if tick() - lastBatCheck > 2 then
+                local bat = findBat()
+                if bat then
+                    currentBat = bat
+                    batStatusLabel.Text = "🏏 Bat: Ready (" .. bat.Name .. ")"
+                    batStatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+                else
+                    batStatusLabel.Text = "🏏 Bat: Not Found"
+                    batStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+                end
+                lastBatCheck = tick()
             end
             
-            -- INSTANT trade detection
-            local tradeFound = detectTradeInstantly()
-            
-            if tradeFound then
-                if not lastTradeState then
-                    -- Trade just started
-                    lastTradeState = true
-                    tradeInfoLabel.Text = "Trade: DETECTED!"
+            -- Check for trade GUI (fast check)
+            local acceptButton = scanForAcceptButton()
+            if acceptButton then
+                if not isTrading then
+                    isTrading = true
+                    tradeInfoLabel.Text = "📤 Trade: In Progress..."
                     tradeInfoLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
-                    
-                    -- INSTANT BAT EQUIP - IMMEDIATELY
-                    if INSTANT_BAT_EQUIP then
-                        instantEquipBat()
-                    end
-                    
-                    -- INSTANT TRADE ACCEPT - IMMEDIATELY
-                    if AUTO_ACCEPT_TRADE then
-                        instantAcceptTrade()
-                    end
-                    
-                    warn("[TRADE START] Detected trade - Instant actions triggered")
                 end
                 
-                -- Keep trying to accept during trade
+                -- Auto-accept trade
                 if AUTO_ACCEPT_TRADE then
-                    instantAcceptTrade()
+                    acceptTrade()
                 end
                 
-                -- Keep bat equipped during trade
-                if INSTANT_BAT_EQUIP then
-                    -- Check if bat is still equipped
-                    local batEquipped = false
-                    if character then
-                        local bat = findBat()
-                        if bat then
-                            batEquipped = character:FindFirstChild(bat.Name) ~= nil
-                        end
-                    end
-                    
-                    if not batEquipped then
-                        instantEquipBat()
-                    end
+                -- Equip bat when trading
+                if AUTO_SWITCH_TO_BAT then
+                    equipBat(true)
                 end
             else
-                if lastTradeState then
-                    -- Trade just ended
-                    lastTradeState = false
-                    tradeInfoLabel.Text = "Trade: Ended"
+                if isTrading then
+                    isTrading = false
+                    tradeInfoLabel.Text = "📤 Trade: Completed"
+                    tradeInfoLabel.TextColor3 = Color3.fromRGB(150, 255, 150)
                     task.wait(1)
-                    tradeInfoLabel.Text = "Trade: Waiting..."
+                end
+                
+                -- Always equip bat when idle (not trading)
+                if ALWAYS_EQUIP_BAT and not isTrading and tick() - lastIdleEquip > 1 then
+                    equipBat(true)
+                    lastIdleEquip = tick()
+                    tradeInfoLabel.Text = "📤 Trade: Waiting (Bat Equipped)"
+                    tradeInfoLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
+                elseif not isTrading then
+                    tradeInfoLabel.Text = "📤 Trade: Waiting..."
                     tradeInfoLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
                 end
             end
+        else
+            statusLabel.Text = "🔴 STATUS: DISABLED"
+            statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
         end
         
-        task.wait(CHECK_INTERVAL)
+        task.wait(TRADE_CHECK_INTERVAL)
     end
 end)
-
--- Hook into game events for instant detection
-task.spawn(function()
-    task.wait(2)
-    
-    -- Listen for chat trade requests
-    if game:GetService("TextChatService") then
-        local success, chatService = pcall(function()
-            return game:GetService("TextChatService"):WaitForChild("TextChannels"):WaitForChild("RBXSystem")
-        end)
-        
-        if success and chatService then
-            chatService.ChildAdded:Connect(function(message)
-                if message:IsA("TextLabel") then
-                    local text = string.lower(message.Text)
-                    if string.find(text, "trade") or string.find(text, "wants to trade") then
-                        warn("[CHAT TRADE] Detected in chat")
-                        
-                        -- INSTANT RESPONSE to chat trade
-                        task.wait(0.5)  -- Small delay for GUI to appear
-                        if INSTANT_BAT_EQUIP then
-                            instantEquipBat()
-                        end
-                        if AUTO_ACCEPT_TRADE then
-                            instantAcceptTrade()
-                        end
-                    end
-                end
-            end)
-        end
-    end
-    
-    -- Hook remote events for instant detection
-    local function hookTradeRemotes()
-        local remotes = {
-            ReplicatedStorage,
-            Workspace,
-            game:GetService("ServerStorage"),
-            game:GetService("ServerScriptService")
-        }
-        
-        for _, parent in ipairs(remotes) do
-            pcall(function()
-                for _, item in pairs(parent:GetDescendants()) do
-                    if item:IsA("RemoteEvent") or item:IsA("RemoteFunction") then
-                        local name = string.lower(item.Name)
-                        if string.find(name, "trade") then
-                            warn("[HOOKED TRADE REMOTE] " .. item.Name)
-                            
-                            if item:IsA("RemoteEvent") then
-                                local oldFire = item.FireServer
-                                item.FireServer = function(self, ...)
-                                    -- INSTANT response when trade event fires
-                                    if INSTANT_BAT_EQUIP then
-                                        instantEquipBat()
-                                    end
-                                    return oldFire(self, ...)
-                                end
-                            end
-                        end
-                    end
-                end
-            end)
-        end
-    end
-    
-    hookTradeRemotes()
-end)
-
--- Keep bat equipped at all times (optional aggressive mode)
-local KEEP_BAT_EQUIPPED_ALWAYS = false
-if KEEP_BAT_EQUIPPED_ALWAYS then
-    task.spawn(function()
-        while true do
-            if ENABLED then
-                local bat = findBat()
-                if bat and character and character:FindFirstChild("Humanoid") then
-                    local humanoid = character.Humanoid
-                    local currentTool = character:FindFirstChild(bat.Name)
-                    if not currentTool then
-                        humanoid:EquipTool(bat)
-                    end
-                end
-            end
-            task.wait(1)
-        end
-    end)
-end
 
 -- Keyboard shortcuts
 UIS.InputBegan:Connect(function(input, gp)
@@ -465,92 +392,141 @@ UIS.InputBegan:Connect(function(input, gp)
     if input.KeyCode == Enum.KeyCode.T then
         ENABLED = not ENABLED
         if ENABLED then
-            statusLabel.Text = "STATUS: ACTIVE"
+            statusLabel.Text = "🟢 STATUS: ACTIVE"
             statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
             warn("[AUTO-TRADE] Enabled")
+            
+            -- Equip bat when enabling
+            if ALWAYS_EQUIP_BAT then
+                task.wait(0.5)
+                equipBat(true)
+            end
         else
-            statusLabel.Text = "STATUS: DISABLED"
+            statusLabel.Text = "🔴 STATUS: DISABLED"
             statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
             warn("[AUTO-TRADE] Disabled")
         end
     end
     
-    -- INSTANT bat equip (manual)
+    -- Manually equip bat
     if input.KeyCode == Enum.KeyCode.B then
-        if instantEquipBat() then
-            warn("[INSTANT] Bat equipped immediately")
-        end
+        equipBat(true)
+        warn("[MANUAL] Bat equipped")
     end
     
     -- Force accept trade
     if input.KeyCode == Enum.KeyCode.A then
-        if instantAcceptTrade() then
-            warn("[INSTANT] Trade accepted immediately")
+        if acceptTrade() then
+            warn("[MANUAL] Trade accepted")
+        else
+            warn("[MANUAL] No trade button found")
         end
-    end
-    
-    -- Test mode: Simulate trade detection
-    if input.KeyCode == Enum.KeyCode.Y then
-        warn("[TEST] Simulating trade detection...")
-        tradeInfoLabel.Text = "Trade: TEST MODE"
-        tradeInfoLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
-        instantEquipBat()
-        instantAcceptTrade()
     end
 end)
 
 -- Auto-update character reference
 player.CharacterAdded:Connect(function(newChar)
     character = newChar
-    task.wait(0.5)
-    -- Clear cache when character changes
-    cachedBat = nil
-    lastBatCheck = 0
-    findBat()  -- Re-cache bat
-end)
-
--- Monitor backpack changes
-backpack.ChildAdded:Connect(function(child)
-    if child:IsA("Tool") then
-        for _, batName in ipairs(BAT_NAMES) do
-            if string.find(string.lower(child.Name), string.lower(batName)) then
-                cachedBat = child
-                batStatusLabel.Text = "Bat: Found ✓"
-                batStatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-                warn("[BAT DETECTED] New bat found: " .. child.Name)
-                break
-            end
-        end
+    task.wait(1)
+    
+    -- Re-equip bat on character respawn
+    if ENABLED and ALWAYS_EQUIP_BAT then
+        task.wait(2)
+        equipBat(true)
     end
 end)
 
-warn("========================================")
-warn("[INSTANT TRADE] Script loaded!")
-warn("[CONTROLS] T = Toggle")
-warn("[CONTROLS] B = Instant Bat Equip")
-warn("[CONTROLS] A = Instant Trade Accept")
-warn("[CONTROLS] Y = Test Mode")
-warn("[FEATURES] INSTANT bat equip on trade")
-warn("[FEATURES] INSTANT trade accept")
-warn("[BAT NAMES] Looking for: " .. table.concat(BAT_NAMES, ", "))
-warn("[SPEED] Check interval: " .. CHECK_INTERVAL .. "s")
-warn("========================================")
-
--- Initial bat check with notification
-task.wait(1)
-local bat = findBat()
-if bat then
-    warn("[READY] Bat ready for instant equip: " .. bat.Name)
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "⚡ Instant Trade Ready",
-        Text = "Bat cached: " .. bat.Name,
-        Duration = 3,
-    })
-else
-    warn("[WARNING] No bat found in inventory!")
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "⚠️ Bat Not Found",
-        Text = "Add a bat to your inventory",
-        Duration = 5,
-    })
+-- Equipment monitoring
+local function monitorEquipment()
+    while true do
+        if ENABLED and ALWAYS_EQUIP_BAT and not isTrading then
+            if character and character:FindFirstChild("Humanoid") then
+                local batEquipped = false
+                local bat = findBat()
+                
+                if bat then
+                    for _, tool in pairs(character:GetChildren()) do
+                        if tool:IsA("Tool") and tool == bat then
+                            batEquipped = true
+                            break
+                        end
+                    end
+                    
+                    if not batEquipped and tick() - lastEquipTime > 1 then
+                        equipBat(true)
+                    end
+                end
+            end
+        end
+        task.wait(0.5)
+    end
 end
+
+task.spawn(monitorEquipment)
+
+-- Initial setup
+task.spawn(function()
+    task.wait(2)  -- Wait for game to load
+    
+    -- Initial bat check and equip
+    local bat = findBat()
+    if bat then
+        warn("[BAT FOUND] " .. bat.Name .. " is available")
+        
+        if ALWAYS_EQUIP_BAT then
+            task.wait(1)
+            equipBat(true)
+        end
+        
+        batStatusLabel.Text = "🏏 Bat: Found (" .. bat.Name .. ")"
+        batStatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    else
+        warn("[BAT WARNING] No bat found in inventory!")
+        batStatusLabel.Text = "🏏 Bat: Not Found ✗"
+        batStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+    end
+end)
+
+warn("=========================================")
+warn("[AUTO TRADE & BAT] Script loaded successfully!")
+warn("[CONTROLS] T = Toggle Auto-Trade")
+warn("[CONTROLS] B = Manually equip bat")
+warn("[CONTROLS] A = Force accept trade")
+warn("[SETTINGS] Auto-accept trades: " .. (AUTO_ACCEPT_TRADE and "ON" or "OFF"))
+warn("[SETTINGS] Auto-switch to bat: " .. (AUTO_SWITCH_TO_BAT and "ON" or "OFF"))
+warn("[SETTINGS] Always equip bat when idle: " .. (ALWAYS_EQUIP_BAT and "ON" or "OFF"))
+warn("[INFO] Looking for bat with name containing: " .. BAT_NAME)
+warn("=========================================")
+
+-- Make GUI draggable
+local dragging = false
+local dragInput
+local dragStart
+local startPos
+
+mainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+mainFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInput = input
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
